@@ -7,6 +7,8 @@ import dev.gilbertoacl.claimflow_api.cliente.dto.EnderecoResponse;
 import dev.gilbertoacl.claimflow_api.cliente.entity.Cliente;
 import dev.gilbertoacl.claimflow_api.cliente.entity.Endereco;
 import dev.gilbertoacl.claimflow_api.cliente.repository.ClienteRepository;
+import dev.gilbertoacl.claimflow_api.shared.exceptions.RecursoNaoEncontradoException;
+import dev.gilbertoacl.claimflow_api.shared.exceptions.RegraDeNegocioException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,15 +29,15 @@ public class ClienteService {
      *
      * @param request O objeto ClienteRequest contendo os dados do cliente a ser criado.
      * @return Um objeto ClienteResponse representando o cliente criado.
-     * @throws IllegalArgumentException Se já existir um cliente com o mesmo CPF ou email.
+     * @throws RegraDeNegocioException Se já existir um cliente com o mesmo CPF ou email.
      */
     public ClienteResponse criar(ClienteRequest request) {
         if (clienteRepository.existsByCpf(request.cpf())) {
-            throw new IllegalArgumentException("CPF ja existente.");
+            throw new RegraDeNegocioException("CPF ja existente.");
         }
 
         if (clienteRepository.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Email ja existente.");
+            throw new RegraDeNegocioException("Email ja existente.");
         }
 
         Cliente cliente = Cliente.builder()
@@ -55,11 +57,11 @@ public class ClienteService {
      *
      * @param id O ID do cliente a ser buscado.
      * @return Um objeto ClienteResponse representando o cliente encontrado.
-     * @throws IllegalArgumentException Se o cliente não for encontrado.
+     * @throws RecursoNaoEncontradoException Se o cliente não for encontrado.
      */
     public ClienteResponse buscarPorId(UUID id) {
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Cliente não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado."));
         return toResponse(cliente);
     }
 
@@ -69,7 +71,6 @@ public class ClienteService {
      * @param id      O ID do cliente a ser atualizado.
      * @param request O objeto ClienteRequest contendo os novos dados do cliente.
      * @return Um objeto ClienteResponse representando o cliente atualizado.
-     * @throws IllegalArgumentException Se o cliente não for encontrado ou se já existir outro cliente com o mesmo CPF ou email.
      */
     private ClienteResponse toResponse(Cliente cliente) {
         return new ClienteResponse(

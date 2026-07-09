@@ -6,6 +6,8 @@ import dev.gilbertoacl.claimflow_api.cliente.dto.EnderecoRequest;
 import dev.gilbertoacl.claimflow_api.cliente.entity.Cliente;
 import dev.gilbertoacl.claimflow_api.cliente.entity.Endereco;
 import dev.gilbertoacl.claimflow_api.cliente.repository.ClienteRepository;
+import dev.gilbertoacl.claimflow_api.shared.exceptions.RecursoNaoEncontradoException;
+import dev.gilbertoacl.claimflow_api.shared.exceptions.RegraDeNegocioException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -88,7 +90,7 @@ public class ClienteServiceTest {
         when(clienteRepository.existsByCpf(request.cpf())).thenReturn(true);
 
         assertThatThrownBy(() -> clienteService.criar(request))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessage("CPF ja existente.");
     }
 
@@ -98,7 +100,7 @@ public class ClienteServiceTest {
         when(clienteRepository.existsByEmail(request.email())).thenReturn(true);
 
         assertThatThrownBy(() -> clienteService.criar(request))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessage("Email ja existente.");
     }
 
@@ -129,7 +131,7 @@ public class ClienteServiceTest {
         when(clienteRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> clienteService.buscarPorId(id))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessage("Cliente não encontrado.");
     }
 }

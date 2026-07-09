@@ -10,7 +10,7 @@ public record ClienteResponse(
         String cpf,
         String email,
         String telefone,
-        EnderecoRequest endereco,
+        EnderecoResponse endereco,
         LocalDate dataNascimento,
         LocalDateTime dataCadastro
 ) {

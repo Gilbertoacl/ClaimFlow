@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
-import org.hibernate.annotations.processing.Pattern;
 import org.hibernate.validator.constraints.br.CPF;
 
 import java.time.LocalDate;
@@ -14,7 +13,7 @@ public record ClienteRequest(
         @NotBlank @CPF String cpf,
         @NotBlank @Email String email,
         String telefone,
-        @Valid String endereco,
+        @Valid EnderecoRequest endereco,
         @Past LocalDate dataNascimento
 ) {
 }

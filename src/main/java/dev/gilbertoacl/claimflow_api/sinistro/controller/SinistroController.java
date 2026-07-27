@@ -1,5 +1,7 @@
 package dev.gilbertoacl.claimflow_api.sinistro.controller;
 
+import dev.gilbertoacl.claimflow_api.historicosinistro.dto.HistoricoSinistroResponse;
+import dev.gilbertoacl.claimflow_api.historicosinistro.service.HistoricoSinistroService;
 import dev.gilbertoacl.claimflow_api.sinistro.dto.AtualizarStatusSinistroRequest;
 import dev.gilbertoacl.claimflow_api.sinistro.dto.SinistroRequest;
 import dev.gilbertoacl.claimflow_api.sinistro.dto.SinistroResponse;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class SinistroController {
 
     private final SinistroService sinistroService;
+    private final HistoricoSinistroService historicoSinistroService;
 
     /**
      * Abre um novo sinistro vinculado a uma apólice.
@@ -27,8 +30,9 @@ public class SinistroController {
      * @return um ResponseEntity contendo o SinistroResponse representando o sinistro criado.
      */
     @PostMapping
-    public ResponseEntity<SinistroResponse> abrir(@Valid @RequestBody SinistroRequest request) {
-        SinistroResponse response = sinistroService.abrirSinistro(request);
+    public ResponseEntity<SinistroResponse> abrir(@Valid @RequestBody SinistroRequest request,
+                                                  @RequestParam UUID responsavelId) {
+        SinistroResponse response = sinistroService.abrirSinistro(request, responsavelId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -61,8 +65,9 @@ public class SinistroController {
      * @return um ResponseEntity contendo o SinistroResponse atualizado.
      */
     @PatchMapping("/status")
-    public ResponseEntity<SinistroResponse> atualizarStatus(@Valid @RequestBody AtualizarStatusSinistroRequest request) {
-        SinistroResponse response = sinistroService.atualizarStatus(request);
+    public ResponseEntity<SinistroResponse> atualizarStatus(@Valid @RequestBody AtualizarStatusSinistroRequest request,
+                                                            @RequestParam UUID responsavelId) {
+        SinistroResponse response = sinistroService.atualizarStatus(request, responsavelId);
         return ResponseEntity.ok(response);
     }
 
@@ -75,5 +80,11 @@ public class SinistroController {
         @GetMapping("/numero/{numeroSinistro}")
         public ResponseEntity<SinistroResponse> buscarPorNumero(@PathVariable String numeroSinistro) {
             return ResponseEntity.ok(sinistroService.buscarPorNumeroSinistro(numeroSinistro));
+        }
+
+        @GetMapping("/numero/{numeroSinistro}/historico")
+        public ResponseEntity<List<HistoricoSinistroResponse>> listarHistorico(@PathVariable String numeroSinistro) {
+            List<HistoricoSinistroResponse> historico = historicoSinistroService.listarPorNumeroSinistro(numeroSinistro);
+            return ResponseEntity.ok(historico);
         }
 }

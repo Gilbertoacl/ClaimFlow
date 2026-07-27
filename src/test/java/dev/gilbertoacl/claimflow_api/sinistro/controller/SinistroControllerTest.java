@@ -1,5 +1,7 @@
 package dev.gilbertoacl.claimflow_api.sinistro.controller;
 
+import dev.gilbertoacl.claimflow_api.historicosinistro.dto.HistoricoSinistroResponse;
+import dev.gilbertoacl.claimflow_api.historicosinistro.service.HistoricoSinistroService;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.EstadoInvalidoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RecursoNaoEncontradoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RegraDeNegocioException;
@@ -26,6 +28,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -44,6 +47,9 @@ class SinistroControllerTest {
     @MockitoBean
     private SinistroService sinistroService;
 
+    @MockitoBean
+    private HistoricoSinistroService historicoSinistroService;
+
     private SinistroRequest requestValido(UUID apoliceId) {
         return new SinistroRequest(apoliceId, LocalDate.now(), "Colisão traseira", BigDecimal.valueOf(2000));
     }
@@ -55,16 +61,26 @@ class SinistroControllerTest {
         );
     }
 
+    private HistoricoSinistroResponse historicoValido(StatusSinistro status, UUID responsavelId) {
+        return new HistoricoSinistroResponse(
+                UUID.randomUUID(), "101202607100001", status, responsavelId,
+                "Observação de teste", LocalDateTime.now()
+        );
+    }
+
     @Test
     void deveAbrirSinistroERetornar201() throws Exception {
         UUID apoliceId = UUID.randomUUID();
         UUID id = UUID.randomUUID();
-        when(sinistroService.abrirSinistro(any(SinistroRequest.class)))
+        UUID responsavelId = UUID.randomUUID();
+        when(sinistroService.abrirSinistro(any(SinistroRequest.class), eq(responsavelId)))
                 .thenReturn(responseValido(id, apoliceId, StatusSinistro.ABERTO));
 
         mockMvc.perform(post("/sinistros")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestValido(apoliceId))))
+                        .content(objectMapper.writeValueAsString(requestValido(apoliceId)))
+                )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(id.toString()))
                 .andExpect(jsonPath("$.statusSinistro").value("ABERTO"));
@@ -72,34 +88,43 @@ class SinistroControllerTest {
 
     @Test
     void deveRetornar404QuandoApoliceNaoEncontradaAoAbrir() throws Exception {
-        when(sinistroService.abrirSinistro(any(SinistroRequest.class)))
+        UUID responsavelId = UUID.randomUUID();
+        when(sinistroService.abrirSinistro(any(SinistroRequest.class), eq(responsavelId)))
                 .thenThrow(new RecursoNaoEncontradoException(MensagensConstants.APOLICE_NAO_ENCONTRADA));
 
         mockMvc.perform(post("/sinistros")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID()))))
+                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID())))
+                )
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void deveRetornar409QuandoApoliceNaoEstaAtiva() throws Exception {
-        when(sinistroService.abrirSinistro(any(SinistroRequest.class)))
+        UUID responsavelId = UUID.randomUUID();
+        when(sinistroService.abrirSinistro(any(SinistroRequest.class), eq(responsavelId)))
                 .thenThrow(new RegraDeNegocioException(MensagensConstants.APOLICE_INATIVA_NAO_PODE_ABRIR_SINISTRO));
 
         mockMvc.perform(post("/sinistros")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID()))))
+                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID())))
+                )
                 .andExpect(status().isConflict());
     }
 
     @Test
     void deveRetornar409QuandoValorSolicitadoMaiorQueSegurado() throws Exception {
-        when(sinistroService.abrirSinistro(any(SinistroRequest.class)))
+        UUID responsavelId = UUID.randomUUID();
+        when(sinistroService.abrirSinistro(any(SinistroRequest.class), eq(responsavelId)))
                 .thenThrow(new RegraDeNegocioException(MensagensConstants.VALOR_SOLICITADO_MAIOR_QUE_SEGURADO));
 
         mockMvc.perform(post("/sinistros")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID()))))
+                        .content(objectMapper.writeValueAsString(requestValido(UUID.randomUUID())))
+                )
                 .andExpect(status().isConflict());
     }
 
@@ -212,12 +237,14 @@ class SinistroControllerTest {
     @Test
     void deveAtualizarStatusERetornar200() throws Exception {
         String numero = "101202607100001";
+        UUID responsavelId = UUID.randomUUID();
         AtualizarStatusSinistroRequest request =
                 new AtualizarStatusSinistroRequest(numero, StatusSinistro.EM_ANALISE, "Iniciando análise");
         SinistroResponse response = responseValido(UUID.randomUUID(), UUID.randomUUID(), StatusSinistro.EM_ANALISE);
-        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class))).thenReturn(response);
+        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class), eq(responsavelId))).thenReturn(response);
 
         mockMvc.perform(patch("/sinistros/status")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -226,12 +253,14 @@ class SinistroControllerTest {
 
     @Test
     void deveRetornar404QuandoSinistroNaoEncontradoAoAtualizarStatus() throws Exception {
+        UUID responsavelId = UUID.randomUUID();
         AtualizarStatusSinistroRequest request =
                 new AtualizarStatusSinistroRequest("inexistente", StatusSinistro.EM_ANALISE, null);
-        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class)))
+        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class), eq(responsavelId)))
                 .thenThrow(new RecursoNaoEncontradoException(MensagensConstants.SINISTRO_NAO_ENCONTRADO));
 
         mockMvc.perform(patch("/sinistros/status")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
@@ -240,12 +269,14 @@ class SinistroControllerTest {
     @Test
     void deveRetornar409QuandoTransicaoDeStatusInvalida() throws Exception {
         String numero = "101202607100001";
+        UUID responsavelId = UUID.randomUUID();
         AtualizarStatusSinistroRequest request =
                 new AtualizarStatusSinistroRequest(numero, StatusSinistro.APROVADO, null);
-        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class)))
+        when(sinistroService.atualizarStatus(any(AtualizarStatusSinistroRequest.class), eq(responsavelId)))
                 .thenThrow(new EstadoInvalidoException("Transição de ABERTO para APROVADO não é permitida"));
 
         mockMvc.perform(patch("/sinistros/status")
+                        .param("responsavelId", responsavelId.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -261,5 +292,53 @@ class SinistroControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.camposComErro[*].campo", hasItem("numeroSinistro")));
+    }
+
+    @Test
+    void deveListarHistoricoDoSinistroERetornar200() throws Exception {
+        String numero = "101202607100001";
+        UUID responsavelId = UUID.randomUUID();
+        List<HistoricoSinistroResponse> historico = List.of(
+                historicoValido(StatusSinistro.ABERTO, responsavelId),
+                historicoValido(StatusSinistro.EM_ANALISE, responsavelId)
+        );
+        when(historicoSinistroService.listarPorNumeroSinistro(numero)).thenReturn(historico);
+
+        mockMvc.perform(get("/sinistros/numero/{numeroSinistro}/historico", numero))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].statusSinistro").value("ABERTO"))
+                .andExpect(jsonPath("$[1].statusSinistro").value("EM_ANALISE"));
+    }
+
+    @Test
+    void deveRetornarListaVaziaQuandoSinistroSemHistorico() throws Exception {
+        String numero = "999999999999999";
+        when(historicoSinistroService.listarPorNumeroSinistro(numero)).thenReturn(List.of());
+
+        mockMvc.perform(get("/sinistros/numero/{numeroSinistro}/historico", numero))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void deveManterOrdemCronologicaDoHistorico() throws Exception {
+        String numero = "101202607100001";
+        UUID responsavelId = UUID.randomUUID();
+        LocalDateTime primeiro = LocalDateTime.now().minusHours(2);
+        LocalDateTime segundo = LocalDateTime.now().minusHours(1);
+
+        HistoricoSinistroResponse aberto = new HistoricoSinistroResponse(
+                UUID.randomUUID(), numero, StatusSinistro.ABERTO, responsavelId, "Sinistro aberto", primeiro
+        );
+        HistoricoSinistroResponse emAnalise = new HistoricoSinistroResponse(
+                UUID.randomUUID(), numero, StatusSinistro.EM_ANALISE, responsavelId, "Em análise", segundo
+        );
+        when(historicoSinistroService.listarPorNumeroSinistro(numero)).thenReturn(List.of(aberto, emAnalise));
+
+        mockMvc.perform(get("/sinistros/numero/{numeroSinistro}/historico", numero))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].statusSinistro").value("ABERTO"))
+                .andExpect(jsonPath("$[1].statusSinistro").value("EM_ANALISE"));
     }
 }

@@ -4,6 +4,7 @@ import dev.gilbertoacl.claimflow_api.apolice.entity.Apolice;
 import dev.gilbertoacl.claimflow_api.apolice.enums.StatusApolice;
 import dev.gilbertoacl.claimflow_api.apolice.enums.TipoApolice;
 import dev.gilbertoacl.claimflow_api.apolice.repository.ApoliceRepository;
+import dev.gilbertoacl.claimflow_api.historicosinistro.service.HistoricoSinistroService;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.EstadoInvalidoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RecursoNaoEncontradoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RegraDeNegocioException;
@@ -43,6 +44,9 @@ class SinistroServiceTest {
     private SinistroRepository sinistroRepository;
     @Mock
     private ApoliceRepository apoliceRepository;
+    @Mock
+    private HistoricoSinistroService historicoSinistroService;
+
     @InjectMocks
     private SinistroService sinistroService;
 
@@ -81,7 +85,7 @@ class SinistroServiceTest {
             return s;
         });
 
-        SinistroResponse response = sinistroService.abrirSinistro(request);
+        SinistroResponse response = sinistroService.abrirSinistro(request, UUID.randomUUID());
 
         assertThat(response.id()).isNotNull();
         assertThat(response.statusSinistro()).isEqualTo(StatusSinistro.ABERTO);
@@ -91,22 +95,24 @@ class SinistroServiceTest {
     @Test
     void deveLancarExcecaoQuandoApoliceNaoEncontrada() {
         UUID apoliceId = UUID.randomUUID();
+        UUID responsavelId = UUID.randomUUID();
         when(apoliceRepository.findById(apoliceId)).thenReturn(Optional.empty());
 
         SinistroRequest request = requestValido(apoliceId);
-        assertThatThrownBy(() -> sinistroService.abrirSinistro(request)).isInstanceOf(RecursoNaoEncontradoException.class);
+        assertThatThrownBy(() -> sinistroService.abrirSinistro(request, responsavelId)).isInstanceOf(RecursoNaoEncontradoException.class);
 
         verify(sinistroRepository, never()).save(any());
     }
 
     @Test
     void deveLancarExcecaoQuandoApoliceNaoEstaAtiva() {
+        UUID id = UUID.randomUUID();
         Apolice apolice = apoliceValida();
         apolice.setStatus(StatusApolice.CANCELADA);
         when(apoliceRepository.findById(apolice.getId())).thenReturn(Optional.of(apolice));
 
         SinistroRequest request = requestValido(apolice.getId());
-        assertThatThrownBy(() -> sinistroService.abrirSinistro(request))
+        assertThatThrownBy(() -> sinistroService.abrirSinistro(request, id))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessage(MensagensConstants.APOLICE_INATIVA_NAO_PODE_ABRIR_SINISTRO);
 
@@ -116,12 +122,13 @@ class SinistroServiceTest {
     @Test
     void deveLancarExcecaoQuandoDataOcorridoForaDaVigencia() {
         Apolice apolice = apoliceValida();
+        UUID id = UUID.randomUUID();
         SinistroRequest request = new SinistroRequest(
                 apolice.getId(), LocalDate.now().minusYears(2), "Evento antigo", BigDecimal.valueOf(1000)
         );
         when(apoliceRepository.findById(apolice.getId())).thenReturn(Optional.of(apolice));
 
-        assertThatThrownBy(() -> sinistroService.abrirSinistro(request))
+        assertThatThrownBy(() -> sinistroService.abrirSinistro(request, id))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessage(MensagensConstants.SINISTRO_FORA_DE_VIGTENCIA);
 
@@ -131,12 +138,13 @@ class SinistroServiceTest {
     @Test
     void deveLancarExcecaoQuandoValorSolicitadoMaiorQueValorSegurado() {
         Apolice apolice = apoliceValida();
+        UUID id = UUID.randomUUID();
         SinistroRequest request = new SinistroRequest(
                 apolice.getId(), LocalDate.now(), "Perda total", BigDecimal.valueOf(999999)
         );
         when(apoliceRepository.findById(apolice.getId())).thenReturn(Optional.of(apolice));
 
-        assertThatThrownBy(() -> sinistroService.abrirSinistro(request))
+        assertThatThrownBy(() -> sinistroService.abrirSinistro(request, id))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessage(MensagensConstants.VALOR_SOLICITADO_MAIOR_QUE_SEGURADO);
 
@@ -218,6 +226,7 @@ class SinistroServiceTest {
 
         SinistroResponse response = sinistroService.atualizarStatus(
                 new AtualizarStatusSinistroRequest(numeroSinistro, StatusSinistro.EM_ANALISE, "Iniciando análise")
+                , UUID.randomUUID()
         );
 
         assertThat(response.statusSinistro()).isEqualTo(StatusSinistro.EM_ANALISE);
@@ -236,6 +245,7 @@ class SinistroServiceTest {
 
         SinistroResponse response = sinistroService.atualizarStatus(
                 new AtualizarStatusSinistroRequest(numeroSinistro, StatusSinistro.APROVADO, "Aprovado após vistoria")
+                , UUID.randomUUID()
         );
 
         assertThat(response.statusSinistro()).isEqualTo(StatusSinistro.APROVADO);
@@ -244,15 +254,16 @@ class SinistroServiceTest {
     @Test
     void deveLancarExcecaoAoPularEtapaDeAbertoParaAprovado() {
         String numeroSinistro = "101202607100001";
+        UUID id = UUID.randomUUID();
         Sinistro sinistro = Sinistro.builder()
-                .id(UUID.randomUUID())
+                .id(id)
                 .numeroSinistro(numeroSinistro)
                 .statusSinistro(StatusSinistro.ABERTO)
                 .build();
         when(sinistroRepository.findByNumeroSinistro(numeroSinistro)).thenReturn(Optional.of(sinistro));
 
         AtualizarStatusSinistroRequest request = new AtualizarStatusSinistroRequest(numeroSinistro, StatusSinistro.APROVADO, null);
-        assertThatThrownBy(() -> sinistroService.atualizarStatus(request)).isInstanceOf(EstadoInvalidoException.class);
+        assertThatThrownBy(() -> sinistroService.atualizarStatus(request, id)).isInstanceOf(EstadoInvalidoException.class);
 
         verify(sinistroRepository, never()).save(any());
     }
@@ -260,29 +271,31 @@ class SinistroServiceTest {
     @Test
     void deveLancarExcecaoAoTentarAlterarStatusDeSinistroJaPago() {
         String numeroSinistro = "101202607100001";
+        UUID id = UUID.randomUUID();
         Sinistro sinistro = Sinistro.builder()
-                .id(UUID.randomUUID())
+                .id(id)
                 .numeroSinistro(numeroSinistro)
                 .statusSinistro(StatusSinistro.PAGO)
                 .build();
         when(sinistroRepository.findByNumeroSinistro(numeroSinistro)).thenReturn(Optional.of(sinistro));
 
         AtualizarStatusSinistroRequest request = new AtualizarStatusSinistroRequest(numeroSinistro, StatusSinistro.EM_ANALISE, null);
-        assertThatThrownBy(() -> sinistroService.atualizarStatus(request)).isInstanceOf(EstadoInvalidoException.class);
+        assertThatThrownBy(() -> sinistroService.atualizarStatus(request, id)).isInstanceOf(EstadoInvalidoException.class);
     }
 
     @Test
     void deveLancarExcecaoAoTentarVoltarDeNegadoParaEmAnalise() {
         String numeroSinistro = "101202607100001";
+        UUID id = UUID.randomUUID();
         Sinistro sinistro = Sinistro.builder()
-                .id(UUID.randomUUID())
+                .id(id)
                 .numeroSinistro(numeroSinistro)
                 .statusSinistro(StatusSinistro.NEGADO)
                 .build();
         when(sinistroRepository.findByNumeroSinistro(numeroSinistro)).thenReturn(Optional.of(sinistro));
 
         AtualizarStatusSinistroRequest request = new AtualizarStatusSinistroRequest(numeroSinistro, StatusSinistro.EM_ANALISE, null);
-        assertThatThrownBy(() -> sinistroService.atualizarStatus(request)).isInstanceOf(EstadoInvalidoException.class);
+        assertThatThrownBy(() -> sinistroService.atualizarStatus(request, id)).isInstanceOf(EstadoInvalidoException.class);
     }
 }
 

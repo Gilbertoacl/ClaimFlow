@@ -13,6 +13,7 @@ public class MensagensConstants {
     public static final String VALOR_SOLICITADO_MAIOR_QUE_SEGURADO = "O valor solicitado não pode ser maior que o valor segurado.";
     public static final String LIMITE_DIARIO_SINISTRO_ATINGIDO = "Limite de sinistros diário atingido para o tipo de apolice: ";
     public static final String SINISTRO_NAO_ENCONTRADO = "Sinistro não encontrado";
+    public static final String SINISTRO_ABERTO = "Sinistro Aberto";
 
     private MensagensConstants() {
         throw new UnsupportedOperationException(CLASSE_UTILIDADE_NAO_INSTANCIADA);

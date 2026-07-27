@@ -3,6 +3,7 @@ package dev.gilbertoacl.claimflow_api.sinistro.service;
 import dev.gilbertoacl.claimflow_api.apolice.entity.Apolice;
 import dev.gilbertoacl.claimflow_api.apolice.enums.StatusApolice;
 import dev.gilbertoacl.claimflow_api.apolice.repository.ApoliceRepository;
+import dev.gilbertoacl.claimflow_api.historicosinistro.service.HistoricoSinistroService;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.EstadoInvalidoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RecursoNaoEncontradoException;
 import dev.gilbertoacl.claimflow_api.shared.exceptions.RegraDeNegocioException;
@@ -36,6 +37,7 @@ public class SinistroService {
     );
     private final SinistroRepository sinistroRepository;
     private final ApoliceRepository apoliceRepository;
+    private final HistoricoSinistroService historicoSinistroService;
 
     /**
      * Responsável pela abertura de sinistros vinculado a apolices no sistema.
@@ -45,7 +47,7 @@ public class SinistroService {
      * @throws RecursoNaoEncontradoException Se a apolce não for encontrada.
      * @throws RegraDeNegocioException se A apolce não for ativa, estiver fora da vigência, Valores fora dos contratados
      */
-    public SinistroResponse abrirSinistro(SinistroRequest request) {
+    public SinistroResponse abrirSinistro(SinistroRequest request, UUID responsavelId) {
         Apolice apolice = apoliceRepository.findById(request.apoliceId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException(MensagensConstants.APOLICE_NAO_ENCONTRADA));
 
@@ -65,7 +67,7 @@ public class SinistroService {
 
         String numeroSinistro = gerarNumeroSinistro(apolice);
 
-        Sinistro sinistro = Sinistro.builder()
+        Sinistro sinistroBuilder = Sinistro.builder()
                 .apoliceId(request.apoliceId())
                 .dataOcorrido(request.dataOcorrido())
                 .descricao(request.decricao())
@@ -74,7 +76,9 @@ public class SinistroService {
                 .numeroSinistro(numeroSinistro)
                 .build();
 
-        return  toResponse(sinistroRepository.save(sinistro));
+        Sinistro sinistro = sinistroRepository.save(sinistroBuilder);
+        historicoSinistroService.registrar(sinistro, responsavelId, MensagensConstants.SINISTRO_ABERTO);
+        return  toResponse(sinistro);
     }
 
     /**
@@ -109,7 +113,7 @@ public class SinistroService {
      * @throws RecursoNaoEncontradoException Caso não encontre o sinistro
      * @throws EstadoInvalidoException caso a transição entre status não for válida
      */
-    public SinistroResponse atualizarStatus(AtualizarStatusSinistroRequest request){
+    public SinistroResponse atualizarStatus(AtualizarStatusSinistroRequest request, UUID resposnsavelId){
         Sinistro sinistro = sinistroRepository.findByNumeroSinistro(request.numeroSinistro())
                 .orElseThrow(() -> new RecursoNaoEncontradoException(MensagensConstants.SINISTRO_NAO_ENCONTRADO));
 
@@ -121,7 +125,9 @@ public class SinistroService {
         }
 
         sinistro.setStatusSinistro(novoStatus);
-        return toResponse(sinistroRepository.save(sinistro));
+        Sinistro sinistroAtualizado = sinistroRepository.save(sinistro);
+        historicoSinistroService.registrar(sinistroAtualizado, resposnsavelId, request.observacao());
+        return toResponse(sinistroAtualizado);
     }
 
     /**
